@@ -44,6 +44,7 @@
 {
     if (!_mSocket) {
         _mSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_main_queue() socketQueue:dispatch_get_main_queue()];
+        [_mSocket readDataWithTimeout:-1 tag:0];
     }
     return _mSocket;
 }
@@ -94,6 +95,7 @@
     if (self.delegate && [self.delegate respondsToSelector:@selector(tcpSocket:connectStatus:)]) {
         [self.delegate tcpSocket:self connectStatus:self.connect];
     }
+    
 }
 
 - (void)socket:(GCDAsyncSocket *)sock didWriteDataWithTag:(long)tag {
@@ -108,6 +110,7 @@
     if (self.delegate && [self.delegate respondsToSelector:@selector(tcpSocket:receverData:)]) {
         [self.delegate tcpSocket:self receverData:msg];
     }
+    [sock readDataWithTimeout:-1 tag:tag];
 }
 
 #pragma - mark - 连接断开
