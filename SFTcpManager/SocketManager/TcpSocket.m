@@ -20,6 +20,9 @@
 @property (nonatomic,assign,getter=isConnect) BOOL connect;
 @property (nonatomic,assign) NSInteger reconnectTimes;
 
+//所有的代理
+@property (nonatomic, strong) NSMutableArray *delegates;
+
 @end
 
 @implementation TcpSocket
@@ -43,8 +46,7 @@
 - (GCDAsyncSocket *)mSocket
 {
     if (!_mSocket) {
-        _mSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_main_queue() socketQueue:dispatch_get_main_queue()];
-        [_mSocket readDataWithTimeout:-1 tag:0];
+        _mSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_main_queue() socketQueue:dispatch_queue_create("com.sinllia", DISPATCH_QUEUE_SERIAL)];
     }
     return _mSocket;
 }
@@ -76,6 +78,13 @@
     }
 }
 
+- (void)sendString:(NSString *)string {
+    if(self.isConnect) {
+        NSData *data = [string dataUsingEncoding:NSUTF8StringEncoding];
+        [self.mSocket writeData:data withTimeout:0 tag:0];
+    }
+}
+
 #pragma mark - 重新链接
 - (void)reConnect {
     if (!self.isConnect) {
@@ -92,10 +101,12 @@
     SLOG(@"socket:%p didConnectToHost:%@ port:%hu", sock, host, port);
     // Backgrounding doesn't seem to be supported on the simulator yet
     self.connect = YES;
-    if (self.delegate && [self.delegate respondsToSelector:@selector(tcpSocket:connectStatus:)]) {
-        [self.delegate tcpSocket:self connectStatus:self.connect];
+    for (id delegate in self.delegates) {
+        if ([delegate respondsToSelector:@selector(tcpSocket:connectStatus:)]) {
+            [delegate tcpSocket:self connectStatus:self.connect];
+        }
     }
-    
+    [sock readDataWithTimeout:-1 tag:0];
 }
 
 - (void)socket:(GCDAsyncSocket *)sock didWriteDataWithTag:(long)tag {
@@ -107,8 +118,10 @@
 {
     NSString *msg = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     SLOG(@"收到数据:\n%@", msg);
-    if (self.delegate && [self.delegate respondsToSelector:@selector(tcpSocket:receverData:)]) {
-        [self.delegate tcpSocket:self receverData:msg];
+    for (id delegate in self.delegates) {
+        if ([delegate respondsToSelector:@selector(tcpSocket:receverData:)]) {
+            [delegate tcpSocket:self receverData:msg];
+        }
     }
     [sock readDataWithTimeout:-1 tag:tag];
 }
@@ -118,10 +131,11 @@
 {
     SLOG(@"socketDidDisconnect:%p withError: %@ ->> times: %ld", sock, err,self.reconnectTimes);
     self.connect = NO;
-    if (self.delegate && [self.delegate respondsToSelector:@selector(tcpSocket:connectStatus:)]) {
-        [self.delegate tcpSocket:self connectStatus:self.connect];
+    for (id delegate in self.delegates) {
+        if ([delegate respondsToSelector:@selector(tcpSocket:connectStatus:)]) {
+            [delegate tcpSocket:self connectStatus:self.connect];
+        }
     }
-    
     if (!err) {
         SLOG(@"主动断开链接了");
         return;
@@ -140,6 +154,28 @@
             [self reConnect];
         });
     }
+}
+
+- (NSMutableArray *)delegates
+{
+    if (!_delegates) {
+        _delegates = [NSMutableArray array];
+    }
+    return _delegates;
+}
+
+#pragma mark - 添加代理
+- (void)addDelegate:(id<TcpSocketDelegate>)delegate
+{
+    if (![self.delegates containsObject:delegate]) {
+        [self.delegates addObject:delegate];
+    }
+}
+
+#pragma mark - 移除代理
+- (void)removeDelegate:(id<TcpSocketDelegate>)delegate
+{
+    [self.delegates removeObject:delegate];
 }
 
 @end

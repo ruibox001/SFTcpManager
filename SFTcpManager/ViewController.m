@@ -27,7 +27,7 @@
     [super viewDidLoad];
     
     self.tcpSocket = [TcpSocket shareTcpSocket];
-    self.tcpSocket.delegate = self;
+    [self.tcpSocket addDelegate:self];
     self.remoteIpTextField.delegate = self;
     self.remotePortTextField.delegate = self;
     self.sendMsgTextField.delegate = self;
@@ -86,6 +86,7 @@
 - (void)tcpSocket:(TcpSocket *)udpSocket connectStatus:(BOOL)connect {
     SLOG(@"tcp状态改变：%d",connect);
     [self.connectBtn setTitle:connect?@"断开":@"连接" forState:UIControlStateNormal];
+    self.showMessageTextView.text = @"";
 }
 
 - (void)tcpSocket:(TcpSocket *)udpSocket receverData:(NSString *)data {
